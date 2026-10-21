@@ -1,6 +1,6 @@
 # Aplicação Ecommerce - Transactional Outbox Pattern
 Um serviço de pedidos Java + Spring Boot, com PostgreSQL, um processo de polling que publica no Kafka, e dois consumidores (estoque e notificação).
-<img width="1896" height="745" alt="image" src="https://github.com/user-attachments/assets/fbb30352-28a8-46d3-a530-10568ec145d7" />
+<img width="1891" height="765" alt="image" src="https://github.com/user-attachments/assets/9b576481-8a9d-4009-8f96-61cd7498c6e4" />
 
 ## Sobre o Padrão:
 ### Para que é utilizado?
