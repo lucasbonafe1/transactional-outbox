@@ -4,7 +4,6 @@ import com.example.stock.model.EventEnvelope;
 import com.example.stock.model.OrderCreatedData;
 import com.example.stock.model.StatusEnum;
 import com.example.stock.repository.StockReservationRepository;
-import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -15,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import static org.springframework.web.servlet.function.RequestPredicates.param;
 
@@ -35,13 +33,11 @@ public class StockReservationService {
 
     @Transactional
     public void handle(EventEnvelope event) {
-        if (!event.eventType().equals("OrderCreated")) {
-            return;
-        }
+        if (!event.eventType().equals("OrderCreated")) return;
 
-        // Verifica na tabela Inbox se o evento já foi processado.
-        boolean wasProcessed = repository.eventWasProcessed(event);
-        if (wasProcessed) {
+        // Verifica na tabela Inbox e salva se o evento ainda não existe.
+        boolean hasBeenSaved = repository.insertEventIfWasNotProcessed(event);
+        if (!hasBeenSaved) {
             log.info("Evento {} já processado; ignorando (entrega duplicada)", event.eventId());
             return;
         }
@@ -58,27 +54,27 @@ public class StockReservationService {
                 i -> productsBySkuAndQuantity.merge(i.sku(), i.quantity(), Integer::sum)
         );
 
-        Map<String, Integer> available = repository.findAvailableStockForSkus(productsBySkuAndQuantity.keySet());
+        Map<String, Integer> itemsWithStock = repository.findAvailableStockForSkus(productsBySkuAndQuantity.keySet());
 
-        List<String> skusWithNoStock = getListOfSkusWithInsufficientStock(productsBySkuAndQuantity, available);
+        List<String> skusWithNoStock = getListOfSkusWithInsufficientStock(productsBySkuAndQuantity, itemsWithStock);
 
         if (!skusWithNoStock.isEmpty()) {
             String reason = "Estoque insuficiente: " + String.join(", ", skusWithNoStock);
 
-            repository.saveReservation(orderId, StatusEnum.REJECTED, reason);
+            repository.saveReservation(orderId, StatusEnum.REJECTED.toString(), reason);
             log.info("Pedido {} REJEITADO: estoque insuficiente para {}", orderId, skusWithNoStock);
             return;
         }
 
         productsBySkuAndQuantity.forEach(repository::updateStock);
 
-        repository.saveReservation(orderId, StatusEnum.RESERVED, null);
+        repository.saveReservation(orderId, StatusEnum.RESERVED.toString(), null);
         log.info("Pedido {} RESERVADO: {}", orderId, productsBySkuAndQuantity);
     }
 
-    private static List<String> getListOfSkusWithInsufficientStock(Map<String, Integer> productsBySkuAndQuantity, Map<String, Integer> available) {
+    private static List<String> getListOfSkusWithInsufficientStock(Map<String, Integer> productsBySkuAndQuantity, Map<String, Integer> itemsWithStock) {
         return productsBySkuAndQuantity.entrySet().stream()
-                .filter(e -> available.getOrDefault(e.getKey(), 0) < e.getValue())
+                .filter(e -> itemsWithStock.getOrDefault(e.getKey(), 0) < e.getValue())
                 .map(Map.Entry::getKey)
                 .toList();
     }

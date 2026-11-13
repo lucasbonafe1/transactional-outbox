@@ -17,11 +17,11 @@ public class StockReservationRepository {
         this.jdbc = jdbc;
     }
 
-    public boolean eventWasProcessed(EventEnvelope event) {
+    public boolean insertEventIfWasNotProcessed(EventEnvelope event) {
         return jdbc.sql("""
-                INSERT INTO processed_events (event_id, event_type)
-                VALUES (:id, :type)
-                ON CONFLICT (event_id) DO NOTHING
+                    INSERT INTO processed_events (event_id, event_type)
+                    VALUES (:id, :type)
+                    ON CONFLICT (event_id) DO NOTHING
                 """)
                 .param("id", event.eventId())
                 .param("type", event.eventType())
@@ -59,7 +59,7 @@ public class StockReservationRepository {
                 .update();
     }
 
-    public void saveReservation(UUID orderId, StatusEnum status, String reason) {
+    public void saveReservation(UUID orderId, String status, String reason) {
         jdbc.sql("""
                    INSERT INTO stock_reservations (order_id, status, reason) VALUES (:id, :status, :reason)
                  """)
