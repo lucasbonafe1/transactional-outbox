@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.example.orders.model.Order;
+import com.example.orders.model.dto.inbox.TransitionRecord;
 import com.example.orders.model.enums.Status;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -73,6 +74,22 @@ public class OrderRepository {
                         rs.getInt("version"),
                         rs.getObject("created_at", OffsetDateTime.class),
                         items))
+                .optional();
+    }
+
+    /** O "AND status = 'CREATED'" é a proteção: só um pedido ainda aberto muda de estado, uma vez. */
+    public Optional<TransitionRecord> changeStatusIfCreated(UUID orderId, Status target) {
+        return jdbc.sql("""
+                UPDATE orders SET status = :target, version = version + 1
+                WHERE id = :id AND status = 'CREATED'
+                RETURNING version, customer_id, total
+                """)
+                .param("target", target.name())
+                .param("id", orderId)
+                .query((rs, n) -> new TransitionRecord(
+                        rs.getInt("version"),
+                        rs.getObject("customer_id", UUID.class),
+                        rs.getBigDecimal("total")))
                 .optional();
     }
 }

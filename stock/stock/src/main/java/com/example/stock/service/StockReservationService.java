@@ -34,7 +34,7 @@ public class StockReservationService {
         if (!event.eventType().equals("OrderCreated")) return null;
 
         UUID orderId = event.aggregateId();
-        OrderCreatedData data = jsonMapper.treeToValue(event.data(), OrderCreatedData.class); // map para class OrderCreatedData
+        OrderCreatedData data = jsonMapper.treeToValue(event.data(), OrderCreatedData.class);
 
         // Verifica na tabela Inbox e salva se o evento ainda não existe.
         boolean hasBeenSaved = repository.insertEventIfWasNotProcessed(event);

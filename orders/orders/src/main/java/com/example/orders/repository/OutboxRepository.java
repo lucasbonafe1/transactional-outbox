@@ -2,12 +2,15 @@ package com.example.orders.repository;
 
 import com.example.orders.model.EventEnvelope;
 import com.example.orders.model.OutboxEvent;
+import com.example.orders.model.dto.inbox.TransitionRecord;
+import com.example.orders.model.enums.Status;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -75,5 +78,4 @@ public class OutboxRepository {
                 .param("error", error)
                 .update();
     }
-
 }
