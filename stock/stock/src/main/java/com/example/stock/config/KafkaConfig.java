@@ -8,6 +8,7 @@ import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.core.JacksonException;
 
@@ -16,6 +17,11 @@ public class KafkaConfig {
     @Bean
     NewTopic ordersDlt(@Value("${orders.dead.letter.topic}") String topicName) {
         return TopicBuilder.name(topicName).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    NewTopic stockEventsTopic(@Value("${stock.events.topic}") String topic) {
+        return TopicBuilder.name(topic).partitions(3).replicas(1).build();
     }
 
     @Bean

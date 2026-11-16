@@ -1,8 +1,6 @@
 package com.example.stock.service;
 
-import com.example.stock.model.EventEnvelope;
-import com.example.stock.model.OrderCreatedData;
-import com.example.stock.model.StatusEnum;
+import com.example.stock.model.*;
 import com.example.stock.repository.StockReservationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,27 +30,40 @@ public class StockReservationService {
     }
 
     @Transactional
-    public void handle(EventEnvelope event) {
-        if (!event.eventType().equals("OrderCreated")) return;
+    public StockDecision handle(EventEnvelope event) {
+        if (!event.eventType().equals("OrderCreated")) return null;
+
+        UUID orderId = event.aggregateId();
+        OrderCreatedData data = jsonMapper.treeToValue(event.data(), OrderCreatedData.class); // map para class OrderCreatedData
 
         // Verifica na tabela Inbox e salva se o evento ainda não existe.
         boolean hasBeenSaved = repository.insertEventIfWasNotProcessed(event);
         if (!hasBeenSaved) {
             log.info("Evento {} já processado; ignorando (entrega duplicada)", event.eventId());
-            return;
+            return loadDecision(orderId, data.items());
         }
 
-        // map para class OrderCreatedData
-        OrderCreatedData data = jsonMapper.treeToValue(event.data(), OrderCreatedData.class);
-        reserve(event.aggregateId(), data.items());
+        reserve(orderId, data.items());
+        return loadDecision(orderId, data.items());
+    }
+
+    private StockDecision loadDecision(UUID orderId, List<OrderCreatedData.Item> items) {
+        List<StockTypeData.Item> summed = sumBySkuAndQuantity(items).entrySet().stream()
+                .map(e -> new StockTypeData.Item(e.getKey(), e.getValue()))
+                .toList();
+
+        return repository.getStockDecisionByOrderId(orderId, summed);
+    }
+
+    // Soma quantidades por codigo SKU e ordena: travar as linhas sempre na mesma ordem evita deadlock.
+    private Map<String, Integer> sumBySkuAndQuantity(List<OrderCreatedData.Item> items) {
+        Map<String, Integer> needed = new TreeMap<>();
+        items.forEach(i -> needed.merge(i.sku(), i.quantity(), Integer::sum));
+        return needed;
     }
 
     private void reserve(UUID orderId, List<OrderCreatedData.Item> orderItems) {
-        // Soma quantidades por codigo SKU e ordena: travar as linhas sempre na mesma ordem evita deadlock.
-        Map<String, Integer> productsBySkuAndQuantity = new TreeMap<>();
-        orderItems.forEach(
-                i -> productsBySkuAndQuantity.merge(i.sku(), i.quantity(), Integer::sum)
-        );
+        Map<String, Integer> productsBySkuAndQuantity = sumBySkuAndQuantity(orderItems);
 
         Map<String, Integer> itemsWithStock = repository.findAvailableStockForSkus(productsBySkuAndQuantity.keySet());
 

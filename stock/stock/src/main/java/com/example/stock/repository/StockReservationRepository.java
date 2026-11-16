@@ -2,9 +2,13 @@ package com.example.stock.repository;
 
 import com.example.stock.model.EventEnvelope;
 import com.example.stock.model.StatusEnum;
+import com.example.stock.model.StockDecision;
+import com.example.stock.model.StockTypeData;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -67,5 +71,17 @@ public class StockReservationRepository {
                 .param("status", status)
                 .param("reason", reason)
                 .update();
+    }
+
+    public StockDecision getStockDecisionByOrderId(UUID orderId, List<StockTypeData.Item> summed) {
+        return jdbc.sql("SELECT status, reason, created_at FROM stock_reservations WHERE order_id = :id")
+                .param("id", orderId)
+                .query((rs, n) -> new StockDecision(
+                        orderId,
+                        StatusEnum.valueOf(rs.getString("status")),
+                        rs.getString("reason"),
+                        rs.getObject("created_at", OffsetDateTime.class),
+                        summed))
+                .single();
     }
 }

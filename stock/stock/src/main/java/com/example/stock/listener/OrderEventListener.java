@@ -1,6 +1,8 @@
 package com.example.stock.listener;
 
 import com.example.stock.model.EventEnvelope;
+import com.example.stock.model.StockDecision;
+import com.example.stock.producer.StockEventPublisher;
 import com.example.stock.service.StockReservationService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
@@ -16,10 +18,12 @@ public class OrderEventListener {
 
     private final JsonMapper jsonMapper;
     private final StockReservationService service;
+    private final StockEventPublisher publisher;
 
-    public OrderEventListener(JsonMapper jsonMapper, StockReservationService service) {
+    public OrderEventListener(JsonMapper jsonMapper, StockReservationService service, StockEventPublisher publisher) {
         this.jsonMapper = jsonMapper;
         this.service = service;
+        this.publisher = publisher;
     }
 
     @KafkaListener(topics = "${stock.topic}")
@@ -27,6 +31,10 @@ public class OrderEventListener {
         EventEnvelope event = jsonMapper.readValue(record.value(), EventEnvelope.class);
         log.info("Recebido {} eventId={} partição={} offset={}", event.eventType(), event.eventId(), record.partition(), record.offset());
 
-        service.handle(event);
+        StockDecision decision = service.handle(event); // transação: inbox + efeito, commit ao retornar
+
+        if (decision != null) {
+            publisher.publish(event.eventId(), decision); // fora da transação, antes do ack do offset
+        }
     }
 }
