@@ -1,0 +1,14 @@
+{
+  "type": "record", "name": "OrderCreated", "namespace": "com.example.events.orders",
+  "doc": "Schema de LEITURA do stock. O contrato oficial é o registrado pelo orders.",
+  "fields": [
+    {"name": "eventId", "type": "string"},
+    {"name": "orderId", "type": "string"},
+    {"name": "items", "type": {"type": "array", "items": {
+      "type": "record", "name": "OrderLine",
+      "fields": [
+        {"name": "sku", "type": "string"},
+        {"name": "quantity", "type": "int"}
+      ]}}}
+  ]
+}
