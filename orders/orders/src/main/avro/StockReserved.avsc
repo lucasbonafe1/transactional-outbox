@@ -1,9 +1,0 @@
-{
-  "type": "record",
-  "name": "StockReserved",
-  "namespace": "com.example.events.stock",
-  "fields": [
-    {"name": "eventId", "type": "string"},
-    {"name": "orderId", "type": "string"}
-  ]
-}
