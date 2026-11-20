@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "OrderCancelled",
+  "namespace": "com.example.events.orders",
+  "fields": [
+    {
+      "name": "orderId",
+      "type": "string"
+    }
+  ]
+}
