@@ -1,53 +1,42 @@
 package com.example.stock.service;
 
-import com.example.stock.model.*;
+import com.example.stock.model.ItemLine;
+import com.example.stock.model.StatusEnum;
+import com.example.stock.model.StockDecision;
+import com.example.stock.model.StockTypeData;
 import com.example.stock.repository.StockReservationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 
-import static org.springframework.web.servlet.function.RequestPredicates.param;
-
 @Service
 public class StockReservationService {
-
     private static final Logger log = LoggerFactory.getLogger(StockReservationService.class);
-
-    private final JsonMapper jsonMapper;
-
     private final StockReservationRepository repository;
 
-    public StockReservationService(StockReservationRepository repository, JsonMapper jsonMapper) {
+    public StockReservationService(StockReservationRepository repository) {
         this.repository = repository;
-        this.jsonMapper = jsonMapper;
     }
 
     @Transactional
-    public StockDecision handle(EventEnvelope event) {
-        if (!event.eventType().equals("OrderCreated")) return null;
-
-        UUID orderId = event.aggregateId();
-        OrderCreatedData data = jsonMapper.treeToValue(event.data(), OrderCreatedData.class);
-
-        // Verifica na tabela Inbox e salva se o evento ainda não existe.
-        boolean hasBeenSaved = repository.insertEventIfWasNotProcessed(event);
+    public StockDecision handle(UUID eventId, UUID orderId, List<ItemLine> items) {
+        boolean hasBeenSaved = repository.insertEventIfWasNotProcessed(eventId);
         if (!hasBeenSaved) {
-            log.info("Evento {} já processado; ignorando (entrega duplicada)", event.eventId());
-            return loadDecision(orderId, data.items());
+            log.info("Evento {} já processado; ignorando (entrega duplicada)", eventId);
+            return loadDecision(orderId, items);
         }
 
-        reserve(orderId, data.items());
-        return loadDecision(orderId, data.items());
+        reserve(orderId, items);
+        return loadDecision(orderId, items);
     }
 
-    private StockDecision loadDecision(UUID orderId, List<OrderCreatedData.Item> items) {
+    private StockDecision loadDecision(UUID orderId, List<ItemLine> items) {
         List<StockTypeData.Item> summed = sumBySkuAndQuantity(items).entrySet().stream()
                 .map(e -> new StockTypeData.Item(e.getKey(), e.getValue()))
                 .toList();
@@ -56,13 +45,13 @@ public class StockReservationService {
     }
 
     // Soma quantidades por codigo SKU e ordena: travar as linhas sempre na mesma ordem evita deadlock.
-    private Map<String, Integer> sumBySkuAndQuantity(List<OrderCreatedData.Item> items) {
+    private Map<String, Integer> sumBySkuAndQuantity(List<ItemLine> items) {
         Map<String, Integer> needed = new TreeMap<>();
         items.forEach(i -> needed.merge(i.sku(), i.quantity(), Integer::sum));
         return needed;
     }
 
-    private void reserve(UUID orderId, List<OrderCreatedData.Item> orderItems) {
+    private void reserve(UUID orderId, List<ItemLine> orderItems) {
         Map<String, Integer> productsBySkuAndQuantity = sumBySkuAndQuantity(orderItems);
 
         Map<String, Integer> itemsWithStock = repository.findAvailableStockForSkus(productsBySkuAndQuantity.keySet());

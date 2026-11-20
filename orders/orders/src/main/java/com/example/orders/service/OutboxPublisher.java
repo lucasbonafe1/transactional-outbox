@@ -1,5 +1,6 @@
 package com.example.orders.service;
 
+import com.example.orders.mapper.OrderEventAvroMapper;
 import com.example.orders.model.OutboxEvent;
 import com.example.orders.repository.OutboxRepository;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -20,18 +21,21 @@ public class OutboxPublisher {
     private static final Logger log = LoggerFactory.getLogger(OutboxPublisher.class);
 
     private final OutboxRepository outbox;
-    private final KafkaTemplate<String, String> kafka;
+    private final KafkaTemplate<String, Object> kafka;      // era <String, String>
+    private final OrderEventAvroMapper avroMapper;
     private final String topic;
     private final int batchSize;
     private final long sendTimeoutMs;
 
     public OutboxPublisher(OutboxRepository outbox,
-                           KafkaTemplate<String, String> kafka,
+                           KafkaTemplate<String, Object> kafka,
+                           OrderEventAvroMapper avroMapper,
                            @Value("${outbox.topic}") String topic,
                            @Value("${outbox.relay.batch-size}") int batchSize,
                            @Value("${outbox.relay.send-timeout-ms}") long sendTimeoutMs) {
         this.outbox = outbox;
         this.kafka = kafka;
+        this.avroMapper = avroMapper;
         this.topic = topic;
         this.batchSize = batchSize;
         this.sendTimeoutMs = sendTimeoutMs;
@@ -44,7 +48,8 @@ public class OutboxPublisher {
 
         for (OutboxEvent event : events) {
             try {
-                ProducerRecord<String, String> record = new ProducerRecord<>(topic, event.aggregateId().toString(), event.payload());
+                Object value = avroMapper.toAvro(event);
+                ProducerRecord<String, Object> record = new ProducerRecord<>(topic, event.aggregateId().toString(), value);
 
                 record.headers().add("eventId", event.id().toString().getBytes(StandardCharsets.UTF_8));
                 record.headers().add("eventType", event.eventType().getBytes(StandardCharsets.UTF_8));

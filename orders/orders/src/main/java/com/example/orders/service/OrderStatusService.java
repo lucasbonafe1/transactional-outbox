@@ -1,10 +1,8 @@
 package com.example.orders.service;
 
 import com.example.orders.model.EventEnvelope;
-import com.example.orders.model.dto.inbox.InboundEvent;
 import com.example.orders.model.dto.inbox.OrderCancelledData;
 import com.example.orders.model.dto.inbox.OrderConfirmedData;
-import com.example.orders.model.dto.inbox.StockRejectedData;
 import com.example.orders.model.enums.Status;
 import com.example.orders.repository.InboxRepository;
 import com.example.orders.repository.OrderRepository;
@@ -38,24 +36,21 @@ public class OrderStatusService {
     }
 
     @Transactional
-    public void handle(InboundEvent event) {
-        String type = event.eventType();
+    public void handle(UUID eventId, String type, UUID orderId, String reason) {
         if (!type.equals("StockReserved") && !type.equals("StockRejected")) {
             return;
         }
 
         // 1. Inbox
-        boolean hasProcessed = inboxRepository.hasProcessedEventsSaved(event, type);
+        boolean hasProcessed = inboxRepository.hasProcessedEventsSaved(eventId, type);
         if (!hasProcessed) {
-            log.info("Evento {} já processado; ignorando", event.eventId());
+            log.info("Evento {} já processado; ignorando", eventId);
             return;
         }
 
-        UUID orderId = event.aggregateId();
         if (type.equals("StockReserved")) {
             changeStatusAndRecordEvent(orderId, Status.CONFIRMED, null, "OrderConfirmed");
         } else {
-            String reason = jsonMapper.treeToValue(event.data(), StockRejectedData.class).reason();
             changeStatusAndRecordEvent(orderId, Status.CANCELLED, reason, "OrderCancelled");
         }
     }

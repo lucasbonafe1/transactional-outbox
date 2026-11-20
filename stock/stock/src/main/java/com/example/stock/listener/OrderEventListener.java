@@ -1,6 +1,7 @@
 package com.example.stock.listener;
 
-import com.example.stock.model.EventEnvelope;
+import com.example.events.orders.OrderCreated;
+import com.example.stock.model.ItemLine;
 import com.example.stock.model.StockDecision;
 import com.example.stock.producer.StockEventPublisher;
 import com.example.stock.service.StockReservationService;
@@ -10,6 +11,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
+
+import java.util.List;
+import java.util.UUID;
 
 @Component
 public class OrderEventListener {
@@ -27,14 +31,20 @@ public class OrderEventListener {
     }
 
     @KafkaListener(topics = "${stock.topic}")
-    public void onMessage(ConsumerRecord<String, String> record) {
-        EventEnvelope event = jsonMapper.readValue(record.value(), EventEnvelope.class);
-        log.info("Recebido {} eventId={} partição={} offset={}", event.eventType(), event.eventId(), record.partition(), record.offset());
-
-        StockDecision decision = service.handle(event); // transação: inbox + efeito, commit ao retornar
-
-        if (decision != null) {
-            publisher.publish(event.eventId(), decision); // fora da transação, antes do ack do offset
+    public void onMessage(ConsumerRecord<String, Object> record) {
+        // O tópico também tem OrderConfirmed/OrderCancelled: este serviço só age sobre OrderCreated.
+        if (!(record.value() instanceof OrderCreated event)) {
+            log.debug("Tipo ignorado no tópico {}", record.topic());
+            return;
         }
+
+        UUID eventId = UUID.fromString(event.getEventId());
+        UUID orderId = UUID.fromString(event.getOrderId());
+        List<ItemLine> items = event.getItems().stream()
+                .map(i -> new ItemLine(i.getSku(), i.getQuantity()))
+                .toList();
+
+        StockDecision decision = service.handle(eventId, orderId, items);
+        publisher.publish(eventId, decision);
     }
 }

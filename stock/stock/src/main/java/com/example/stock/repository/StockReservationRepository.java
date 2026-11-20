@@ -1,6 +1,5 @@
 package com.example.stock.repository;
 
-import com.example.stock.model.EventEnvelope;
 import com.example.stock.model.StatusEnum;
 import com.example.stock.model.StockDecision;
 import com.example.stock.model.StockTypeData;
@@ -21,14 +20,14 @@ public class StockReservationRepository {
         this.jdbc = jdbc;
     }
 
-    public boolean insertEventIfWasNotProcessed(EventEnvelope event) {
+    public boolean insertEventIfWasNotProcessed(UUID eventId) {
         return jdbc.sql("""
                     INSERT INTO processed_events (event_id, event_type)
                     VALUES (:id, :type)
                     ON CONFLICT (event_id) DO NOTHING
                 """)
-                .param("id", event.eventId())
-                .param("type", event.eventType())
+                .param("id", eventId)
+                .param("type", "OrderCreated")
                 .update() > 0;
     }
 
